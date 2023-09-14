@@ -1,51 +1,65 @@
-import React, {useEffect} from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import React, { useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { END } from 'redux-saga';
+
 import AppLayout from '../components/AppLayout';
 import PostForm from '../components/PostForm';
 import PostCard from '../components/PostCard';
 import { LOAD_POSTS_REQUEST } from '../reducers/post';
+import { LOAD_MY_INFO_REQUEST } from '../reducers/user';
+import wrapper from '../store/configureStore';
+import axios from 'axios';
 
 const Home = () => {
-    // useEffect로 컴포넌트 마운트 효과를 넣을 수 있다. 뒤에 빈배열만 넣는 다면.
-    const dispatch = useDispatch();
-    const { me } = useSelector((state) => state.user);
-    const { mainPosts, hasMorePosts, loadPostsLoading } = useSelector((state) => state.post);
+  const dispatch = useDispatch();
+  const { me } = useSelector((state) => state.user); //user.js에서 가져온다.
+  const { mainPosts, hasMorePosts, loadPostsLoading, retweetError } = useSelector((state) => state.post);
 
-
-    useEffect(() => {
-        dispatch({
-            type: LOAD_POSTS_REQUEST,
-        });
-    }, []);
-
-
-    useEffect(() => {
-        function onScroll() {
-            console.log(parseInt(window.scrollY) + document.documentElement.clientHeight > document.documentElement.scrollHeight-300,parseInt(window.scrollY), document.documentElement.clientHeight, document.documentElement.scrollHeight);
-        
-        // 스크롤 끝까지 내렸을 때 게시글 더 로드해서 다시 내려가게 하는 거
-        if (parseInt(window.scrollY) + document.documentElement.clientHeight > document.documentElement.scrollHeight-300) {
-            if (hasMorePosts && !loadPostsLoading) { // 리듀서에서 정의했음. 50개 이하면 true
-                dispatch({
-                    type: LOAD_POSTS_REQUEST,
-                });
-            }
-        }
+  useEffect(() => {
+    if (retweetError) {
+      alert(retweetError);
     }
+  }, [retweetError]);
+  useEffect(() => {
+    function onScroll() {
+      if (window.pageYOffset + document.documentElement.clientHeight > document.documentElement.scrollHeight - 300) {
+        if (hasMorePosts && !loadPostsLoading) {
+          const lastId = mainPosts[mainPosts.length - 1]?.id;
+          dispatch({
+            type: LOAD_POSTS_REQUEST,
+            lastId,
+          });
+        }
+      }
+    }
+    window.addEventListener('scroll', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, [hasMorePosts, loadPostsLoading, mainPosts]);
+  
+  return (
+    <AppLayout>
+      {me && <PostForm />}
+      {mainPosts.map((post) => <PostCard key={post.id} post={post} />)}
+    </AppLayout>
+  );
+};
+//제일 먼저 실행된다.
+export const getServerSideProps = wrapper.getServerSideProps(async(context) => {
+  const cookie = context.req ? context.req.headers.cookie: ''; //서버에 쿠키 전달
+  axios.defaults.headers.Cookie = ''; //쿠키 공유 문제 해결
+  if(context.req && cookie) { 
+    axios.defaults.headers.Cookie = cookie;
+  }
+  context.store.dispatch({
+    type: LOAD_MY_INFO_REQUEST,
+  });
+  context.store.dispatch({
+    type: LOAD_POSTS_REQUEST,
+  });
+  context.store.dispatch(END); //리퀘스트가 success 될때까지 기다린다.
+  await context.store.sagaTask.toPromise();
+});
 
-        window.addEventListener('scroll', onScroll);
-        return () => {
-            window.removeEventListener('scroll', onScroll);
-        };
-    }, [hasMorePosts, loadPostsLoading]);
-
-
-    return (
-        <AppLayout>
-            {me && <PostForm />}
-            {mainPosts.map((post) => <PostCard key={post.id} post={post} />)}
-        </AppLayout>
-    );
-}
-
-export default Home; 
+export default Home;

@@ -1,3 +1,4 @@
+//commentlist 파일 추가
 import React, { useCallback, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Card, Popover, Button, Avatar, List, Comment } from 'antd';
@@ -50,10 +51,10 @@ const PostCard = ({ post }) => {
             data: post.id,
         })
     }, []);
-
     const { me } = useSelector((state) => state.user);
     const id = me?.id;
-    return (
+    
+    return ( 
             <div>
                 <List 
                     itemLayout="horizontal"
